@@ -40,12 +40,12 @@ const char *src =
 
 int main() {
 
-	const int wA = 1000;
-	const int hA = 1000;
+	const int wA = 1024;
+	const int hA = 1024;
 	const size_t dsA = wA*hA * sizeof(float);
 	float *A = (float *)malloc(dsA);
 
-	const int wB = 1000;
+	const int wB = 1024;
 	const int hB = wA;
 	const size_t dsB = wB*hB * sizeof(float);
 	float *B = (float *)malloc(dsB);
@@ -62,6 +62,21 @@ int main() {
 	cl_context_properties cps[3] = { CL_CONTEXT_PLATFORM, (cl_context_properties)platform, 0 };
 	cl_context ctx = clCreateContext(cps, 1, &device, NULL, NULL, &err); assert(err == 0);
 	cl_command_queue myqueue = clCreateCommandQueue(ctx, device, 0, &err); assert(err == 0);
+
+	size_t max_work_group_size = -1;
+	err = clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &max_work_group_size, NULL);
+	std::cout << "Maximum work group size for this device: " << max_work_group_size << std::endl;
+
+	cl_uint max_work_item_dims = -1;
+	err = clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS, sizeof(cl_uint), &max_work_item_dims, NULL);
+	std::cout << "Maximum work item dimensions: " << max_work_item_dims << std::endl;
+
+	size_t max_work_item_sizes[20];
+	err = clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(max_work_item_sizes), max_work_item_sizes, NULL);
+	for (int i = 0; i < max_work_item_dims; ++i)
+		std::cout << "Workgroup sz along dim " << i << ": " << max_work_item_sizes[i] << std::endl;
+
+
 
 	cl_mem bufferA = clCreateBuffer(ctx, CL_MEM_READ_ONLY, dsA, NULL, &err); assert(err == 0);
 	cl_mem bufferB = clCreateBuffer(ctx, CL_MEM_READ_ONLY, dsB, NULL, &err); assert(err == 0);
@@ -84,11 +99,21 @@ int main() {
 
 	// You might want to change this to
 	// get this example to run on your device
-	size_t localws[2]  = { 8,   8 };
+	size_t localws[2]  = { 64,  64 };
 	size_t globalws[2] = { wC, hC };
 
-	err = clEnqueueNDRangeKernel(myqueue, mykernel, 2, NULL, globalws, localws, 0, NULL, NULL); assert(err == 0);
+	err = clEnqueueNDRangeKernel(myqueue, mykernel, 2, NULL, globalws, localws, 0, NULL, NULL);
+	std::cout << err << std::endl;
+	assert(err == 0);
+
 	err = clEnqueueReadBuffer(myqueue, bufferC, CL_TRUE, 0, dsC, (void*)C, 0, NULL, NULL); assert(err == 0);
+
+	float test = 0.0f;
+	for (int i = 0; i < wA; ++i)
+		test += A[i*hA + 0] * B[0 * wB + i];
+
+	std::cout << test << std::endl;
+	std::cout << C[0 * wC + 0] << std::endl;
 
 	clReleaseProgram(myprog);
 	clReleaseKernel(mykernel);
